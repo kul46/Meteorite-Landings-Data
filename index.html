@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Meteorite Landings Narrative</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/d3-svg-annotation@2"></script>
+  <script src="https://unpkg.com/topojson-client@3"></script>
+  <style>
+    body { background: #000; color: #fff; font-family: sans-serif; }
+    button { margin: 5px; padding: 8px; background: #222; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
+    #vis svg { background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg"><circle cx="1" cy="1" r="0.5" fill="white" /></svg>') repeat; }
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <button id="prev">Prev</button>
+    <button id="next">Next</button>
+  </div>
+  <div id="vis"></div>
+  <script>
+    const width = 800, height = 500, margin = { top: 40, right: 20, bottom: 40, left: 60 };
+    let svg = d3.select('#vis').append('svg').attr('width', width).attr('height', height);
+    let data, sceneIndex = 0;
+    const scenes = [scene1, scene2, scene3];
+
+    d3.csv('Meteorite_Landings.csv', d => ({
+      name: d.name,
+      mass: +d['mass (g)'],
+      year: new Date(d.year).getFullYear(),
+      lat: +d.reclat,
+      lon: +d.reclong
+    })).then(raw => {
+      data = raw.filter(d => d.year && d.mass);
+      update();
+    });
+
+    d3.select('#next').on('click', () => { if (sceneIndex < scenes.length - 1) sceneIndex++; update(); });
+    d3.select('#prev').on('click', () => { if (sceneIndex > 0) sceneIndex--; update(); });
+
+    function update() {
+      svg.selectAll('*').remove();
+      svg.selectAll('.annotation').remove();
+      scenes[sceneIndex]();
+    }
+
+    function scene1() {
+      const byDecade = d3.rollup(data, v => v.length, d => Math.floor(d.year / 10) * 10);
+      const decades = Array.from(byDecade.keys()).sort((a, b) => a - b);
+      const counts = decades.map(d => byDecade.get(d));
+      const x = d3.scaleBand().domain(decades).range([margin.left, width - margin.right]).padding(0.1);
+      const y = d3.scaleLinear().domain([0, d3.max(counts)]).nice().range([height - margin.bottom, margin.top]);
+
+      svg.append('g').attr('transform', `translate(0,${height - margin.bottom})`).call(d3.axisBottom(x).tickFormat(d => d));
+      svg.append('g').attr('transform', `translate(${margin.left},0)`).call(d3.axisLeft(y));
+
+      svg.selectAll('rect').data(decades).join('rect')
+        .attr('x', d => x(d)).attr('y', d => y(byDecade.get(d)))
+        .attr('width', x.bandwidth()).attr('height', d => y(0) - y(byDecade.get(d)))
+        .attr('fill', '#777');
+    }
+
+    function scene2() {
+      const x = d3.scaleLinear().domain(d3.extent(data, d => d.year)).range([margin.left, width - margin.right]);
+      const y = d3.scaleLog().domain([1, d3.max(data, d => d.mass)]).range([height - margin.bottom, margin.top]);
+
+      svg.append('g').attr('transform', `translate(0,${height - margin.bottom})`).call(d3.axisBottom(x).tickFormat(d3.format('d')));
+      svg.append('g').attr('transform', `translate(${margin.left},0)`).call(d3.axisLeft(y));
+
+      svg.selectAll('circle').data(data).join('circle')
+        .attr('cx', d => x(d.year)).attr('cy', d => y(d.mass)).attr('r', 2)
+        .attr('fill', '#555');
+
+      const top10 = data.slice().sort((a, b) => b.mass - a.mass).slice(0, 10);
+      svg.selectAll('circle.top').data(top10).join('circle')
+        .attr('class', 'top').attr('cx', d => x(d.year)).attr('cy', d => y(d.mass))
+        .attr('r', 5).attr('fill', '#ff0');
+
+      const ann = [{ note: { label: `Heaviest meteorite: ${top10[0].name}`, title: '' }, x: x(top10[0].year), y: y(top10[0].mass), dx: 50, dy: -30 }];
+      const makeAnn = d3.annotation().annotations(ann);
+      svg.append('g').attr('class', 'annotation').call(makeAnn);
+    }
+
+    function scene3() {
+      d3.json('https://unpkg.com/world-atlas@2/countries-50m.json').then(world => {
+        const countries = topojson.feature(world, world.objects.countries);
+        const projection = d3.geoMercator().scale(130).translate([width / 2, height / 2]);
+        const path = d3.geoPath().projection(projection);
+
+        svg.append('g').selectAll('path').data(countries.features).join('path')
+          .attr('d', path).attr('fill', '#111').attr('stroke', '#444');
+
+        const pts = data.filter(d => d.lat && d.lon);
+        const size = d3.scaleSqrt().domain([0, d3.max(pts, d => d.mass)]).range([0, 15]);
+
+        svg.selectAll('circle').data(pts).join('circle')
+          .attr('cx', d => projection([d.lon, d.lat])[0]).attr('cy', d => projection([d.lon, d.lat])[1])
+          .attr('r', d => size(d.mass)).attr('fill', 'rgba(255,255,255,0.6)').append('title')
+          .text(d => `${d.name}\n${d.mass}g`);
+
+        const top = pts.sort((a, b) => b.mass - a.mass)[0];
+        const ann = [{ note: { label: `Heaviest: ${top.name}`, title: '' }, x: projection([top.lon, top.lat])[0], y: projection([top.lon, top.lat])[1], dx: 30, dy: 30 }];
+        const makeAnn = d3.annotation().annotations(ann);
+        svg.append('g').attr('class', 'annotation').call(makeAnn);
+      });
+    }
+  </script>
+</body>
+</html>
