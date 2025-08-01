@@ -2,225 +2,39 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
   <title>Cosmic Meteorite Narrative</title>
+  <link rel="stylesheet" href="style.css">
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/d3-svg-annotation@2"></script>
   <script src="https://unpkg.com/topojson-client@3"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
-  <style>
-    * { box-sizing: border-box; }
-    body { margin: 0; background: #000; color: #eee; font-family: 'Roboto', sans-serif; }
-    #controls { text-align: center; padding: 10px; }
-    button {
-      margin: 0 5px; padding: 8px 16px;
-      background: #1a1a1a; color: #eee; border: 1px solid #444;
-      border-radius: 4px; cursor: pointer; font-weight: bold;
-      transition: background 0.3s;
-    }
-    button:hover { background: #333; }
-    #vis { position: relative; width: 100%; max-width: 900px; margin: auto; }
-    svg { display: block; }
-    text.title {
-      fill: #fff; font-size: 18px; text-anchor: middle;
-    }
-    .axis line, .axis path { stroke: #888; }
-    .axis text { fill: #ccc; font-size: 12px; }
-    .tooltip {
-      position: absolute; pointer-events: none;
-      background: rgba(0,0,0,0.7); color: #fff;
-      padding: 6px 8px; border-radius: 4px;
-      font-size: 12px; opacity: 0;
-      transition: opacity 0.2s;
-    }
-    #explore-controls {
-      display: none; text-align: center; margin: 15px auto;
-      color: #ccc;
-    }
-    select, input[type=range] { margin: 0 8px; }
-  </style>
 </head>
 <body>
-  <div id="controls">
-    <button id="prev">Prev</button>
-    <button id="next">Next</button>
+  <div id="app">
+    <header>
+      <button id="prev">Prev</button>
+      <h1 id="scene-title">Loading…</h1>
+      <button id="next">Next</button>
+    </header>
+
+    <main>
+      <div id="vis">
+        <svg id="svg"></svg>
+      </div>
+
+      <aside id="explore-panel">
+        <label>Year ≥ <span id="yr-val">860</span>:</label>
+        <input type="range" id="yearSlider" min="860" max="2013" value="860">
+        <label>Class:</label>
+        <select id="classSelect"><option>All</option></select>
+      </aside>
+    </main>
+
+    <div id="tooltip" class="tooltip"></div>
   </div>
-  <div id="vis"><svg></svg></div>
-  <div id="explore-controls">
-    <label>Year ≥ <span id="yr-val"></span>:</label>
-    <input type="range" id="yearSlider" min="860" max="2013" value="860" step="1">
-    <label>Class:</label>
-    <select id="classSelect"><option>All</option></select>
-  </div>
-  <div class="tooltip" id="tooltip"></div>
-  <script>
-    const margin = {top: 50, right: 30, bottom: 50, left: 60},
-          width = 900 - margin.left - margin.right,
-          height = 500 - margin.top - margin.bottom;
-    const svg = d3.select('svg')
-        .attr('width', width + margin.left + margin.right)
-        .attr('height', height + margin.top + margin.bottom)
-      .append('g').attr('transform', `translate(${margin.left},${margin.top})`);
 
-    const tooltip = d3.select('#tooltip');
-    let data, topo;
-    let sceneIndex = 0;
-    const sceneTitles = [
-      'Meteorite Falls per Decade',
-      'Heaviest Meteorites Over Time',
-      'Global Distribution by Mass',
-      'Explore Meteorites Freely'
-    ];
-
-    Promise.all([
-      d3.csv('Meteorite_Landings.csv', d => ({
-        name: d.name,
-        mass: +d['mass (g)'],
-        year: d.year ? new Date(d.year).getFullYear() : null,
-        lat: +d.reclat, lon: +d.reclong,
-        recclass: d.recclass
-      })),
-      d3.json('https://unpkg.com/world-atlas@2/countries-50m.json')
-    ]).then(([raw, world]) => {
-      data = raw.filter(d => d.year && d.mass);
-      topo = topojson.feature(world, world.objects.countries);
-      populateClasses();
-      update();
-    });
-
-    d3.select('#next').on('click', () => { sceneIndex = Math.min(sceneIndex + 1, scenes.length -1); update(); });
-    d3.select('#prev').on('click', () => { sceneIndex = Math.max(sceneIndex - 1, 0); update(); });
-    d3.select('#yearSlider').on('input', function() { d3.select('#yr-val').text(this.value); if(sceneIndex===3) scene4(); });
-    d3.select('#classSelect').on('change', () => { if(sceneIndex===3) scene4(); });
-
-    function populateClasses() {
-      const classes = Array.from(new Set(data.map(d=>d.recclass))).sort();
-      const sel = d3.select('#classSelect');
-      classes.forEach(c => sel.append('option').text(c));
-    }
-
-    const scenes = [scene1, scene2, scene3, scene4];
-    function update() {
-      d3.select('#explore-controls').style('display', sceneIndex===3 ? 'block' : 'none');
-      svg.selectAll('*').remove();
-      svg.append('text').attr('class','title')
-         .attr('x', width/2).attr('y', -20)
-         .text(sceneTitles[sceneIndex]);
-      scenes[sceneIndex]();
-    }
-
-    function scene1() {
-      const byDecade = d3.rollup(data, v=>v.length, d=>Math.floor(d.year/10)*10);
-      const decades = Array.from(byDecade.keys()).sort((a,b)=>a-b);
-      const x = d3.scaleBand().domain(decades)
-                  .range([0, width]).padding(0.2);
-      const y = d3.scaleLinear().domain([0, d3.max(byDecade.values())]).nice()
-                  .range([height, 0]);
-      svg.append('g').attr('class','axis')
-         .attr('transform',`translate(0,${height})`)
-         .call(d3.axisBottom(x).tickFormat(d=>d));
-      svg.append('g').attr('class','axis')
-         .call(d3.axisLeft(y));
-      svg.selectAll('rect').data(decades).enter()
-         .append('rect')
-         .attr('x', d=>x(d)).attr('y', d=>y(byDecade.get(d)))
-         .attr('width', x.bandwidth()).attr('height', d=>height-y(byDecade.get(d)))
-         .attr('fill', '#555');
-    }
-
-    function scene2() {
-      const x = d3.scaleLinear()
-                  .domain(d3.extent(data, d=>d.year)).nice()
-                  .range([0, width]);
-      const y = d3.scaleLog()
-                  .domain([1, d3.max(data, d=>d.mass)]).nice()
-                  .range([height, 0]);
-      svg.append('g').attr('class','axis')
-         .attr('transform',`translate(0,${height})`)
-         .call(d3.axisBottom(x).tickFormat(d3.format('d')));
-      svg.append('g').attr('class','axis')
-         .call(d3.axisLeft(y).ticks(6, '~s'));
-
-      svg.append('g').selectAll('circle')
-         .data(data).enter()
-         .append('circle')
-         .attr('cx', d=>x(d.year)).attr('cy', d=>y(d.mass))
-         .attr('r', 2).attr('fill','#777')
-         .on('mouseover', d=> showTip(d, d3.event.pageX, d3.event.pageY))
-         .on('mouseout', hideTip);
-
-      const top = data.sort((a,b)=>b.mass-a.mass).slice(0,10);
-      svg.append('g').selectAll('circle.highlight')
-         .data(top).enter()
-         .append('circle')
-         .attr('class','highlight')
-         .attr('cx', d=>x(d.year)).attr('cy', d=>y(d.mass))
-         .attr('r', 6).attr('fill','#ff0');
-      const ann = [{ note:{label:`${top[0].name} (${top[0].mass}g)`}, x:x(top[0].year), y:y(top[0].mass), dx:40, dy:-30 }];
-      svg.append('g').call(d3.annotation().annotations(ann));
-    }
-
-    function scene3() {
-      const projection = d3.geoMercator()
-                         .scale(140)
-                         .translate([width/2, height/2]);
-      const path = d3.geoPath().projection(projection);
-      svg.append('g').selectAll('path')
-         .data(topo.features).enter()
-         .append('path')
-         .attr('d', path)
-         .attr('fill', '#111').attr('stroke','#333');
-
-      const pts = data.filter(d=>d.lat && d.lon);
-      const r = d3.scaleSqrt()
-                   .domain([0, d3.max(pts,d=>d.mass)])
-                   .range([0,12]);
-      svg.append('g').selectAll('circle')
-         .data(pts).enter()
-         .append('circle')
-         .attr('cx', d=>projection([d.lon,d.lat])[0])
-         .attr('cy', d=>projection([d.lon,d.lat])[1])
-         .attr('r', d=>r(d.mass))
-         .attr('fill','rgba(255,255,255,0.6)')
-         .on('mouseover', d=>{
-           const [x,y] = d3.mouse(document.body);
-           showTip(d, x, y);
-         })
-         .on('mouseout', hideTip);
-      const big = pts.sort((a,b)=>b.mass-a.mass)[0];
-      const ann = [{ note:{label:`Heaviest: ${big.name}`},
-                     x:projection([big.lon,big.lat])[0],
-                     y:projection([big.lon,big.lat])[1], dx:30, dy:30 }];
-      svg.append('g').call(d3.annotation().annotations(ann));
-    }
-
-    function scene4() {
-      svg.selectAll('*').remove();
-      const yr = +d3.select('#yearSlider').property('value');
-      const cls = d3.select('#classSelect').property('value');
-      let pts = data.filter(d=>d.year >= yr);
-      if (cls !== 'All') pts = pts.filter(d=>d.recclass === cls);
-      const x = d3.scaleLinear().domain(d3.extent(data,d=>d.year)).nice().range([0,width]);
-      const y = d3.scaleLog().domain([1,d3.max(data,d=>d.mass)]).nice().range([height,0]);
-      svg.append('g').attr('class','axis')
-         .attr('transform',`translate(0,${height})`).call(d3.axisBottom(x).tickFormat(d3.format('d')));
-      svg.append('g').attr('class','axis')
-         .call(d3.axisLeft(y).ticks(6,'~s'));
-      svg.append('g').selectAll('circle')
-         .data(pts).join('circle')
-         .attr('cx',d=>x(d.year)).attr('cy',d=>y(d.mass)).attr('r',3)
-         .attr('fill','#0af')
-         .on('mouseover', d=> showTip(d, d3.event.pageX, d3.event.pageY))
-         .on('mouseout', hideTip);
-    }
-
-    function showTip(d, x, y) {
-      tooltip.style('left', (x+10)+'px')
-             .style('top', (y+10)+'px')
-             .html(`<strong>${d.name}</strong><br/>Year: ${d.year}<br/>Mass: ${d.mass}g`)
-             .style('opacity',1);
-    }
-    function hideTip() { tooltip.style('opacity',0); }
-  </script>
+  <script src="script.js" defer></script>
 </body>
 </html>
