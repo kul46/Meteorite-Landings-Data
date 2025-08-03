@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Global Meteorite Falls</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://unpkg.com/topojson-client@3"></script>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at center, #1b2735, #090a0f),
+        url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='4' height='4'><circle cx='2' cy='2' r='1' fill='white'/></svg>");
+      background-size: cover, 4px 4px;
+      font-family: Roboto, sans-serif;
+      color: #fff;
+    }
+
+    #controls {
+      position: absolute;
+      top: 20px;
+      left: 40px;
+      right: 40px;
+      display: flex;
+      justify-content: space-between;
+      z-index: 1;
+    }
+
+    button {
+      background: linear-gradient(135deg, #434343, #000);
+      border: 2px solid #fff;
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 30px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      box-shadow: 0 0 10px rgba(255,255,255,0.6);
+    }
+
+    #map {
+      position: absolute;
+      top: 80px;
+      bottom: 40px;
+      left: 40px;
+      right: 40px;
+    }
+
+    .note {
+      position: absolute;
+      bottom: 20px;
+      left: 40px;
+      padding: 4px 8px;
+      font-size: 12px;
+      color: #ccc;
+    }
+
+    .intro {
+      position: absolute;
+      bottom: 20px;
+      right: 40px;
+      padding: 12px 24px;
+      border: 2px solid rgba(255,255,255,0.6);
+      border-radius: 8px;
+      font-family: 'Georgia', serif;
+      font-size: 18px;
+      color: #fff;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        box-shadow: 0 0 5px rgba(255,255,255,0.4);
+        border-color: rgba(255,255,255,0.4);
+      }
+      50% {
+        box-shadow: 0 0 25px rgba(255,255,255,1);
+        border-color: rgba(255,255,255,1);
+      }
+    }
+
+    .country {
+      fill: none;
+      stroke: #555;
+      stroke-width: 0.5;
+    }
+
+    .dot {
+      fill: rgba(200,200,200,0.7);
+      stroke: #fff;
+      stroke-width: 0.5;
+    }
+
+    .dot.highlight {
+      fill: #01f;
+      stroke: #fff;
+      stroke-width: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <button onclick="location.href='scene2.html'">Prev</button>
+    <button onclick="location.href='explore.html'">Next</button>
+  </div>
+
+  <div id="map"></div>
+
+  <div class="intro">Where on Earth do meteorites land?</div>
+  <div class="note">Pinch to zoom</div>
+
+  <script>
+    function draw() {
+      const container = d3.select('#map');
+      container.selectAll('*').remove();
+
+      const width  = container.node().clientWidth;
+      const height = container.node().clientHeight;
+
+      const svg = container
+        .append('svg')
+        .attr('width', width)
+        .attr('height', height);
+
+      const g = svg.append('g');
+
+      const zoom = d3.zoom()
+        .scaleExtent([1, 8])
+        .on('zoom', (event) => {
+          g.attr('transform', event.transform);
+        });
+
+      svg.call(zoom);
+
+      Promise.all([
+        d3.json('https://unpkg.com/world-atlas@2/countries-50m.json'),
+        d3.csv('Meteorite_Landings.csv', d => ({
+          lat:  +d.reclat,
+          lon:  +d.reclong,
+          mass: +d['mass (g)'],
+          name: d.name
+        }))
+      ]).then(([world, data]) => {
+        const countries = topojson
+          .feature(world, world.objects.countries)
+          .features;
+
+        const projection = d3.geoMercator()
+          .fitSize([width, height],
+            topojson.feature(world, world.objects.countries)
+          );
+
+        const path = d3.geoPath().projection(projection);
+
+        g.selectAll('path')
+          .data(countries)
+          .enter()
+          .append('path')
+          .attr('class', 'country')
+          .attr('d', path);
+
+        const points = data.filter(d => d.lat && d.lon);
+        const radius = d3.scaleSqrt()
+          .domain(d3.extent(points, d => d.mass))
+          .range([1, 12]);
+
+        const maxMass = d3.max(points, d => d.mass);
+
+        g.selectAll('circle')
+          .data(points)
+          .enter()
+          .append('circle')
+          .attr('class', d =>
+            d.mass === maxMass ? 'dot highlight' : 'dot'
+          )
+          .attr('cx', d => projection([d.lon, d.lat])[0])
+          .attr('cy', d => projection([d.lon, d.lat])[1])
+          .attr('r',  d => radius(d.mass));
+      });
+    }
+
+    window.addEventListener('load',   draw);
+    window.addEventListener('resize', draw);
+  </script>
+</body>
+</html>

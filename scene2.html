@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Heaviest Meteorites</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    html,body{margin:0;padding:0;height:100%;overflow:hidden;
+      background:
+        radial-gradient(circle at center,#1b2735,#090a0f),
+        url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='4' height='4'><circle cx='2' cy='2' r='1' fill='white'/></svg>");
+      background-size:cover,4px 4px;
+      font-family:Roboto,sans-serif;
+      color:#fff;
+    }
+    #controls{position:absolute;top:20px;left:40px;right:40px;display:flex;justify-content:space-between;z-index:1}
+    button{background:linear-gradient(135deg,#434343,#000);border:2px solid #fff;color:#fff;padding:8px 16px;border-radius:30px;cursor:pointer}
+    button:hover{box-shadow:0 0 10px rgba(255,255,255,0.6)}
+    #chart{position:absolute;top:80px;bottom:80px;left:40px;right:40px}
+    .intro{position:absolute;bottom:20px;right:40px;padding:12px 24px;border:2px solid rgba(255,255,255,0.6);border-radius:8px;font-family:'Georgia',serif;font-size:18px;color:#fff;animation:pulse 2s infinite}
+    @keyframes pulse{0%,100%{box-shadow:0 0 5px rgba(255,255,255,0.4);border-color:rgba(255,255,255,0.4)}50%{box-shadow:0 0 25px rgba(255,255,255,1);border-color:rgba(255,255,255,1)}}
+    .axis path,.axis line{stroke:#555}
+    .axis text{fill:#ccc;font-size:12px}
+    .bar{fill:#888;stroke:#fff;stroke-width:1}
+    .bar.highlight{fill:#01f;stroke:#fff;stroke-width:2;filter:url(#glow)}
+    .label{fill:#fff;font-size:12px}
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <button onclick="location.href='scene1.html'">Prev</button>
+    <button onclick="location.href='scene3.html'">Next</button>
+  </div>
+  <div id="chart"></div>
+  <div class="intro">Meet the heaviest meteorite ever found.</div>
+  <script>
+    const margin={top:20,right:150,bottom:30,left:150};
+    function draw(){
+      const c = d3.select('#chart');
+      c.selectAll('*').remove();
+      const cw = c.node().clientWidth - margin.left - margin.right;
+      const ch = c.node().clientHeight - margin.top - margin.bottom;
+      const svg = c.append('svg')
+        .attr('width', c.node().clientWidth)
+        .attr('height', c.node().clientHeight);
+      const defs = svg.append('defs');
+      const glow = defs.append('filter').attr('id','glow');
+      glow.append('feGaussianBlur').attr('stdDeviation',4).attr('result','blur');
+      const mg = glow.append('feMerge');
+      mg.append('feMergeNode').attr('in','blur');
+      mg.append('feMergeNode').attr('in','SourceGraphic');
+      const g = svg.append('g')
+        .attr('transform',`translate(${margin.left},${margin.top})`);
+      d3.csv('Meteorite_Landings.csv', d=>({
+        name:d.name,
+        mass:+d['mass (g)']
+      })).then(data=>{
+        const top10 = data.sort((a,b)=>b.mass-a.mass).slice(0,10);
+        const x = d3.scaleLinear().domain([0,d3.max(top10,d=>d.mass)]).nice().range([0,cw]);
+        const y = d3.scaleBand().domain(top10.map(d=>d.name)).range([0,ch]).padding(0.2);
+        g.append('g').attr('class','axis').call(d3.axisLeft(y));
+        g.append('g').attr('class','axis').attr('transform',`translate(0,${ch})`)
+          .call(d3.axisBottom(x).tickFormat(d=>d/1e6+'M'));
+        g.selectAll('.bar').data(top10).enter().append('rect')
+          .attr('class',(d,i)=>i===0?'bar highlight':'bar')
+          .attr('x',0).attr('y',d=>y(d.name)).attr('width',d=>x(d.mass)).attr('height',y.bandwidth());
+        g.selectAll('.label').data(top10).enter().append('text')
+          .attr('class','label')
+          .attr('x',d=>x(d.mass)+6)
+          .attr('y',d=>y(d.name)+y.bandwidth()/2+4)
+          .text(d=>d3.format(',')(d.mass)+' g');
+      });
+    }
+    window.addEventListener('load', draw);
+    window.addEventListener('resize', draw);
+  </script>
+</body>
+</html>

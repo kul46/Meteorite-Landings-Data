@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Explore Meteorites Through Time</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    html,body{margin:0;padding:0;height:100%;overflow:hidden;
+      background:
+        radial-gradient(circle at center,#1b2735,#090a0f),
+        url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='4' height='4'><circle cx='2' cy='2' r='1' fill='white'/></svg>");
+      background-size:cover,4px 4px;
+      font-family:Roboto,sans-serif;color:#fff;
+    }
+    #controls{position:absolute;top:20px;left:40px;display:flex;gap:12px;align-items:center;z-index:2}
+    #controls button{background:linear-gradient(135deg,#434343,#000);border:2px solid #fff;color:#fff;padding:6px 12px;border-radius:30px;cursor:pointer}
+    #controls select{background:#fff;color:#000;border:2px solid #fff;padding:6px 12px;border-radius:30px;cursor:pointer}
+    #controls label{color:#ccc;font-size:14px}
+    #chart{position:absolute;top:80px;bottom:40px;left:60px;right:60px}
+    .axis path,.axis line{stroke:#555}
+    .axis text{fill:#ccc;font-size:12px}
+    .bar{fill:#888;opacity:0.8}
+    .line{fill:none;stroke:#0af;stroke-width:2}
+    .dot{fill:#0af;stroke:#fff;stroke-width:1}
+    .tooltip{position:absolute;pointer-events:none;background:rgba(0,0,0,0.8);color:#fff;padding:6px 8px;border-radius:4px;font-size:12px;opacity:0;transition:opacity .1s}
+    .legend{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.6);border:2px solid #fff;padding:8px 12px;border-radius:8px;z-index:2}
+    .legend-item{display:flex;align-items:center;margin:4px 0;color:#fff;font-size:14px}
+    .swatch{width:12px;height:12px;margin-right:6px}
+    .bar-swatch{background:#888}
+    .line-swatch{width:12px;height:0;border-bottom:3px solid #0af}
+    .top-intro{position:absolute;top:60px;left:50%;transform:translateX(-50%);padding:12px 24px;border:2px solid rgba(255,255,255,0.6);border-radius:8px;font-family:'Georgia',serif;font-size:18px;color:#fff;animation:pulse 2s infinite;z-index:2}
+    @keyframes pulse{0%,100%{box-shadow:0 0 5px rgba(255,255,255,0.4);border-color:rgba(255,255,255,0.4)}50%{box-shadow:0 0 25px rgba(255,255,255,1);border-color:rgba(255,255,255,1)}}
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <button onclick="location.href='scene3.html'">Prev</button>
+    <label>Class:</label>
+    <select id="class-select"></select>
+    <label>Continent:</label>
+    <select id="continent-select"></select>
+  </div>
+  <div class="top-intro">Count &amp; Size: Meteorite Discoveries Over Time</div>
+  <div class="legend">
+    <div class="legend-item"><span class="swatch bar-swatch"></span>Falls per Decade</div>
+    <div class="legend-item"><span class="swatch line-swatch"></span>Average Mass</div>
+  </div>
+  <div id="chart"></div>
+  <div id="tooltip" class="tooltip"></div>
+  <script>
+    const margin={top:20,right:60,bottom:40,left:60};
+    let raw,decades;
+    const svg=d3.select('#chart').append('svg');
+    const g=svg.append('g');
+    const tooltip=d3.select('#tooltip');
+    const xScale=d3.scaleBand().padding(0.1);
+    const yCount=d3.scaleLinear();
+    const yMass=d3.scaleLinear();
+    const continents=[
+      {n:'All'},
+      {n:'Africa',b:{latMin:-35,latMax:37,lonMin:-18,lonMax:51}},
+      {n:'Antarctica',b:{latMin:-90,latMax:-60,lonMin:-180,lonMax:180}},
+      {n:'Asia',b:{latMin:1,latMax:81,lonMin:26,lonMax:180}},
+      {n:'Europe',b:{latMin:35,latMax:71,lonMin:-10,lonMax:60}},
+      {n:'North America',b:{latMin:5,latMax:83,lonMin:-168,lonMax:-52}},
+      {n:'Oceania',b:{latMin:-50,latMax:0,lonMin:110,lonMax:180}},
+      {n:'South America',b:{latMin:-56,latMax:13,lonMin:-82,lonMax:-34}}
+    ];
+    d3.csv('Meteorite_Landings.csv',d=>({
+      year:new Date(d.year||0).getFullYear(),
+      mass:+d['mass (g)'],recclass:d.recclass,lat:+d.reclat,lon:+d.reclong
+    })).then(data=>{
+      raw=data.filter(d=>d.year>0&&d.mass>0&&d.lat&&d.lon);
+      decades=Array.from(new Set(raw.map(d=>Math.floor(d.year/10)*10))).sort((a,b)=>a-b);
+      const classes=['All',...new Set(raw.map(d=>d.recclass)).values()];
+      const cs=d3.select('#class-select');
+      classes.forEach(c=>cs.append('option').text(c));
+      cs.on('change',draw);
+      const ds=d3.select('#continent-select');
+      continents.forEach(c=>ds.append('option').text(c.n));
+      ds.on('change',draw);
+      window.addEventListener('resize',draw);
+      draw();
+    });
+    function inCont(d,b){
+      return d.lat>=b.latMin&&d.lat<=b.latMax&&d.lon>=b.lonMin&&d.lon<=b.lonMax;
+    }
+    function draw(){
+      const C=document.getElementById('chart').getBoundingClientRect();
+      svg.attr('width',C.width).attr('height',C.height);
+      const W=C.width-margin.left-margin.right;
+      const H=C.height-margin.top-margin.bottom;
+      g.attr('transform',`translate(${margin.left},${margin.top})`);
+      const cls=d3.select('#class-select').property('value');
+      const cont=d3.select('#continent-select').property('value');
+      const filt=raw.filter(d=>
+        (cls==='All'||d.recclass===cls)&&
+        (cont==='All'||inCont(d,continents.find(c=>c.n===cont).b))
+      );
+      const roll=d3.rollups(filt,
+        v=>({count:v.length,avg:d3.mean(v,d=>d.mass)}),
+        d=>Math.floor(d.year/10)*10
+      );
+      const mp=new Map(roll);
+      const data=decades.map(d=>({
+        decade:d,
+        count:mp.get(d)?.count||0,
+        avg:mp.get(d)?.avg||0
+      }));
+      xScale.domain(decades).range([0,W]);
+      yCount.domain([0,d3.max(data,d=>d.count)]).nice().range([H,0]);
+      yMass.domain([0,d3.max(data,d=>d.avg)]).nice().range([H,0]);
+      g.selectAll('.axis').remove();
+      g.append('g').attr('class','axis')
+        .attr('transform',`translate(0,${H})`)
+        .call(d3.axisBottom(xScale).tickFormat(d3.format('d')));
+      g.append('g').attr('class','axis')
+        .call(d3.axisLeft(yCount));
+      g.append('g').attr('class','axis')
+        .attr('transform',`translate(${W},0)`)
+        .call(d3.axisRight(yMass).ticks(6,'~s'));
+      const bars=g.selectAll('.bar').data(data,d=>d.decade);
+      bars.join('rect')
+        .attr('class','bar')
+        .attr('x',d=>xScale(d.decade))
+        .attr('y',d=>yCount(d.count))
+        .attr('width',xScale.bandwidth())
+        .attr('height',d=>H-yCount(d.count))
+        .on('mousemove',showTip)
+        .on('mouseout',hideTip);
+      const line=d3.line()
+        .x(d=>xScale(d.decade)+xScale.bandwidth()/2)
+        .y(d=>yMass(d.avg));
+      g.selectAll('path.line').data([data]).join('path')
+        .attr('class','line').attr('d',line);
+      const dots=g.selectAll('.dot').data(data,d=>d.decade);
+      dots.join('circle')
+        .attr('class','dot')
+        .attr('cx',d=>xScale(d.decade)+xScale.bandwidth()/2)
+        .attr('cy',d=>yMass(d.avg))
+        .attr('r',3)
+        .on('mousemove',showTip)
+        .on('mouseout',hideTip);
+    }
+    function showTip(e,d){
+      tooltip.html(
+        `Decade: ${d.decade}s<br/>Count: ${d.count}<br/>Avg mass: ${Math.round(d.avg).toLocaleString()} g`
+      ).style('opacity',1)
+       .style('left',e.pageX+10+'px')
+       .style('top',e.pageY+10+'px');
+    }
+    function hideTip(){tooltip.style('opacity',0);}
+  </script>
+</body>
+</html>

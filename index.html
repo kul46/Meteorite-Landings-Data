@@ -2,39 +2,137 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>Cosmic Meteorite Narrative</title>
-  <link rel="stylesheet" href="style.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Meteorites Through the Ages</title>
+  <link rel="stylesheet" href="css/style.css">
   <script src="https://d3js.org/d3.v7.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/d3-svg-annotation@2"></script>
   <script src="https://unpkg.com/topojson-client@3"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; }
+    body { background: #000; overflow: hidden; }
+    #cover {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background:
+        radial-gradient(circle at center, #1b2735 0%, #090a0f 100%),
+        url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"><circle cx="2" cy="2" r="1" fill="white"/></svg>');
+      background-size: cover, 4px 4px;
+    }
+    #cover-map { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0.2; }
+    .meteor {
+      position: absolute;
+      width: 2px; height: 30vh;
+      background: rgba(255,255,255,0.2);
+      transform: rotate(45deg);
+      animation: fall 2s linear infinite;
+    }
+    .star {
+      position: absolute;
+      width: 2px; height: 2px;
+      border-radius: 50%;
+      background: white;
+      opacity: 0;
+      animation: twinkle 3s infinite;
+    }
+    @keyframes fall {
+      0%   { transform: translateY(0) rotate(45deg); opacity: 0; }
+      30%  { opacity: 1; }
+      100% { transform: translateY(120vh) rotate(45deg); opacity: 0; }
+    }
+    @keyframes twinkle {
+      0%,100% { opacity: 0; }
+      50%     { opacity: 0.8; }
+    }
+    .cover-text {
+      position: relative; z-index: 1;
+      text-align: center;
+      top: 50%; transform: translateY(-50%);
+      color: #fff;
+      text-shadow: 0 0 8px rgba(0,0,0,0.7);
+      padding: 0 20px;
+    }
+    .cover-text h1 { font-size: 3rem; margin-bottom: 0.5rem; }
+    .cover-text p  { font-size: 1.2rem; margin-bottom: 2rem; }
+    #start-button {
+      background: linear-gradient(135deg, #434343 0%, #000000 100%);
+      border: 2px solid #fff;
+      color: #fff;
+      padding: 12px 24px;
+      font-size: 1.1rem; font-weight: bold;
+      border-radius: 30px;
+      box-shadow: 0 0 15px rgba(255,255,255,0.3);
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      transition: box-shadow 0.3s, transform 0.3s;
+    }
+    #start-button:hover {
+      box-shadow: 0 0 25px rgba(255,255,255,0.6);
+      transform: scale(1.05);
+    }
+    .arrow-right {
+      display: inline-block; margin-left: 8px;
+      width: 0; height: 0;
+      border-top: 6px solid transparent;
+      border-bottom: 6px solid transparent;
+      border-left: 8px solid #fff;
+      animation: arrow-pulse 1s infinite;
+      vertical-align: middle;
+    }
+    @keyframes arrow-pulse {
+      0%,100% { transform: translateX(0); opacity: 1; }
+      50%     { transform: translateX(4px); opacity: 0.6; }
+    }
+  </style>
 </head>
 <body>
-  <div id="app">
-    <header>
-      <button id="prev">Prev</button>
-      <h1 id="scene-title">Loading…</h1>
-      <button id="next">Next</button>
-    </header>
-
-    <main>
-      <div id="vis">
-        <svg id="svg"></svg>
-      </div>
-
-      <aside id="explore-panel">
-        <label>Year ≥ <span id="yr-val">860</span>:</label>
-        <input type="range" id="yearSlider" min="860" max="2013" value="860">
-        <label>Class:</label>
-        <select id="classSelect"><option>All</option></select>
-      </aside>
-    </main>
-
-    <div id="tooltip" class="tooltip"></div>
+  <div id="cover">
+    <svg id="cover-map"></svg>
+    <div class="cover-text">
+      <h1>Meteorites Through the Ages</h1>
+      <p>Tracing every recorded fall from the first sighting to the modern boom</p>
+      <button id="start-button" onclick="location.href='scene1.html'">
+        Begin Your Journey Through Time
+        <span class="arrow-right"></span>
+      </button>
+    </div>
   </div>
-
-  <script src="script.js" defer></script>
+  <script>
+    window.addEventListener('load', () => {
+      const cover = document.getElementById('cover');
+      for (let i = 0; i < 6; i++) {
+        const m = document.createElement('div');
+        m.className = 'meteor';
+        m.style.left = Math.random() * 100 + '%';
+        m.style.top = '-20%';
+        m.style.animationDelay = Math.random() * 2 + 's';
+        cover.appendChild(m);
+      }
+      for (let j = 0; j < 100; j++) {
+        const s = document.createElement('div');
+        s.className = 'star';
+        s.style.left = Math.random() * 100 + '%';
+        s.style.top = Math.random() * 100 + '%';
+        s.style.animationDelay = Math.random() * 3 + 's';
+        cover.appendChild(s);
+      }
+      const svg = d3.select('#cover-map');
+      const rect = svg.node().getBoundingClientRect();
+      const w = rect.width, h = rect.height;
+      const g = svg.append('g');
+      d3.json('https://unpkg.com/world-atlas@2/countries-50m.json').then(world => {
+        const countries = topojson.feature(world, world.objects.countries);
+        const proj = d3.geoMercator().scale(w / 6.5).translate([w / 2, h / 2]);
+        const path = d3.geoPath().projection(proj);
+        g.selectAll('path')
+          .data(countries.features)
+          .enter().append('path')
+          .attr('d', path)
+          .attr('fill', 'none')
+          .attr('stroke', '#fff')
+          .attr('stroke-width', 0.5);
+      });
+    });
+  </script>
 </body>
 </html>
