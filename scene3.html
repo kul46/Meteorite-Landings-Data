@@ -8,10 +8,7 @@
   <script src="https://unpkg.com/topojson-client@3"></script>
   <style>
     html, body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      overflow: hidden;
+      margin: 0; padding: 0; height: 100%; overflow: hidden;
       background:
         radial-gradient(circle at center, #1b2735, #090a0f),
         url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='4' height='4'><circle cx='2' cy='2' r='1' fill='white'/></svg>");
@@ -19,53 +16,58 @@
       font-family: Roboto, sans-serif;
       color: #fff;
     }
-
     #controls {
-      position: absolute;
-      top: 20px;
-      left: 40px;
-      right: 40px;
-      display: flex;
-      justify-content: space-between;
-      z-index: 1;
+      position: absolute; top: 20px; left: 40px; right: 40px;
+      display: flex; justify-content: space-between; z-index: 1;
     }
-
     button {
       background: linear-gradient(135deg, #434343, #000);
-      border: 2px solid #fff;
-      color: #fff;
-      padding: 8px 16px;
-      border-radius: 30px;
-      cursor: pointer;
+      border: 2px solid #fff; color: #fff;
+      padding: 8px 16px; border-radius: 30px; cursor: pointer;
     }
-
     button:hover {
       box-shadow: 0 0 10px rgba(255,255,255,0.6);
     }
-
     #map {
-      position: absolute;
-      top: 80px;
-      bottom: 40px;
-      left: 40px;
-      right: 40px;
+      position: absolute; top: 80px; bottom: 40px;
+      left: 40px; right: 40px;
     }
-
-    .intro {
+    .legend {
       position: absolute;
-      bottom: 20px;
-      right: 40px;
+      top: 60px; left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.6);
+      border: 2px solid #fff;
+      padding: 8px 12px;
+      border-radius: 8px;
+      z-index: 2;
+    }
+    .legend-item {
+      display: flex; align-items: center;
+      color: #fff; font-size: 14px; margin: 4px 0;
+    }
+    .swatch {
+      width: 12px; height: 12px;
+      display: inline-block; margin-right: 6px;
+      border: 1px solid #fff;
+    }
+    .dot-swatch {
+      background: rgba(200,200,200,0.7);
+    }
+    .highlight-swatch {
+      background: #01f;
+    }
+    .intro {
+      position: absolute; bottom: 20px; right: 40px;
       padding: 12px 24px;
       border: 2px solid rgba(255,255,255,0.6);
       border-radius: 8px;
       font-family: 'Georgia', serif;
-      font-size: 18px;
-      color: #fff;
+      font-size: 18px; color: #fff;
       animation: pulse 2s infinite;
     }
-
     @keyframes pulse {
-      0%, 100% {
+      0%,100% {
         box-shadow: 0 0 5px rgba(255,255,255,0.4);
         border-color: rgba(255,255,255,0.4);
       }
@@ -74,23 +76,15 @@
         border-color: rgba(255,255,255,1);
       }
     }
-
     .country {
-      fill: none;
-      stroke: #555;
-      stroke-width: 0.5;
+      fill: none; stroke: #555; stroke-width: 0.5;
     }
-
     .dot {
       fill: rgba(200,200,200,0.7);
-      stroke: #fff;
-      stroke-width: 0.5;
+      stroke: #fff; stroke-width: 0.5;
     }
-
     .dot.highlight {
-      fill: #01f;
-      stroke: #fff;
-      stroke-width: 1.5;
+      fill: #01f; stroke: #fff; stroke-width: 1.5;
     }
   </style>
 </head>
@@ -98,6 +92,15 @@
   <div id="controls">
     <button onclick="location.href='scene2.html'">Prev</button>
     <button onclick="location.href='explore.html'">Next</button>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item">
+      <span class="swatch dot-swatch"></span> Meteorite fall
+    </div>
+    <div class="legend-item">
+      <span class="swatch highlight-swatch"></span> Heaviest meteorite
+    </div>
   </div>
 
   <div id="map"></div>
@@ -179,4 +182,3 @@
   </script>
 </body>
 </html>
-
